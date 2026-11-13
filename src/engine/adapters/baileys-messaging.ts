@@ -400,6 +400,7 @@ export class BaileysMessaging {
   private async previewThumbnail(
     preview: CustomLinkPreview,
     expected?: WASocket,
+    jid?: string,
   ): Promise<{ jpegThumbnail?: Buffer; highQualityThumbnail?: BaileysLib.proto.Message.IImageMessage }> {
     let data: Buffer;
     if (preview.thumbnailBase64) {
@@ -422,6 +423,10 @@ export class BaileysMessaging {
           upload: sock.waUploadToServer,
           mediaTypeOverride: 'thumbnail-link',
           mediaUploadTimeoutMs: this.uploadTimeoutMs(),
+          // A channel (newsletter) post is read by people who hold no media key for it: Baileys uploads
+          // newsletter media raw when it knows the recipient, and an encrypted thumbnail-link only ever
+          // renders as the small inline jpegThumbnail on readers' phones. Same recipient as the text.
+          ...(jid ? { jid } : {}),
         },
       );
       this.sock(sock);
@@ -485,7 +490,7 @@ export class BaileysMessaging {
               'canonical-url': sendOptions.customPreview.url,
               title: sendOptions.customPreview.title,
               ...(sendOptions.customPreview.description ? { description: sendOptions.customPreview.description } : {}),
-              ...(await this.previewThumbnail(sendOptions.customPreview, socket)),
+              ...(await this.previewThumbnail(sendOptions.customPreview, socket, jid)),
             },
           }
         : {}),
