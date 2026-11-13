@@ -431,6 +431,28 @@ export class BaileysMessaging {
       );
       this.sock(sock);
       if (!imageMessage) return {};
+      if (jid && jid.endsWith('@newsletter')) {
+        // Baileys' raw (newsletter) branch uploads the bytes and stops: no dimensions, no inline thumbnail and
+        // no fileEncSha256, which the encrypted branch all fills in. A reader's phone lays the large card out
+        // from the dimensions, shows the inline thumbnail while it fetches, and checks the fetched bytes against
+        // thumbnailEncSha256; with those blank the card renders large and empty. Unencrypted bytes hash to
+        // their own plain hash, so the two hashes are one and the same here.
+        const sharpLib = await loadSharp().catch(() => undefined);
+        if (sharpLib) {
+          const meta = await sharpLib(image).metadata();
+          if (meta.width && meta.height) {
+            imageMessage.width = meta.width;
+            imageMessage.height = meta.height;
+          }
+          imageMessage.jpegThumbnail = await sharpLib(image)
+            .resize({ width: 320, height: 320, fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 70 })
+            .toBuffer();
+        }
+        if (!imageMessage.fileEncSha256 && imageMessage.fileSha256) {
+          imageMessage.fileEncSha256 = imageMessage.fileSha256;
+        }
+      }
       return {
         ...(imageMessage.jpegThumbnail ? { jpegThumbnail: Buffer.from(imageMessage.jpegThumbnail) } : {}),
         highQualityThumbnail: imageMessage,
